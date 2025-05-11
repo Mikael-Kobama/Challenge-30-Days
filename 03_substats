@@ -1,0 +1,104 @@
+import random
+import pandas as pd
+
+SUBSTATS = {
+    "ch_crit": {"base": 2.6, "upgrade": 2.9},
+    "dmg_crit": {"base": 5.8, "upgrade": 6.0},
+    "vel": {"base": 2, "upgrade": 2.4},
+    "res": {"base": 3.6, "upgrade": 4.0},
+    "atk_flat": {"base": 19, "upgrade": 20},
+    "atk_pct": {"base": 17, "upgrade": 20},
+    "def_flat": {"base": 18, "upgrade": 20},
+    "def_pct": {"base": 4.8, "upgrade": 5},
+    "hp_flat": {"base": 36, "upgrade": 20},
+    "hp_pct": {"base": 3.6, "upgrade": 4},
+    "eff_pct": {"base": 3.5, "upgrade": 4},
+    "break_pct": {"base": 5.8, "upgrade": 6.0},
+}
+
+NUM_EQUIPAMENTOS = 6
+MAX_UPS = 4
+CHANCE_CRIT_POSSIVEIS = 5
+NUM_SIMULACOES = 10000
+
+def gerar_equipamento(possui_ch_crit=True):
+    stats_possiveis = list(SUBSTATS.keys())
+    substats = random.sample(stats_possiveis, 4)
+
+    if "dmg_crit" not in substats:
+        substats[random.randint(0, 3)] = "dmg_crit"
+    if possui_ch_crit and "ch_crit" not in substats:
+        if "dmg_crit" in substats:
+            idx = random.choice([i for i in range(4) if substats[i] != "dmg_crit"])
+        else:
+            idx = random.randint(0, 3)
+        substats[idx] = "ch_crit"
+
+    valores = {}
+    ups = {"ch_crit": 0, "dmg_crit": 0}
+
+    upgrades_distribuidos = [0, 0, 0, 0]
+    for _ in range(MAX_UPS):
+        idx = random.randint(0, 3)
+        upgrades_distribuidos[idx] += 1
+
+    for i, stat in enumerate(substats):
+        base = SUBSTATS[stat]["base"]
+        upgrade = upgrades_distribuidos[i] * SUBSTATS[stat]["upgrade"]
+        valores[stat] = base + upgrade
+        if stat in ups:
+            ups[stat] = upgrades_distribuidos[i]
+
+    return valores, ups, "ch_crit" in substats, "dmg_crit" in substats
+
+def simular_conjunto():
+    total_ch_crit = 0
+    total_dmg_crit = 0
+    equipamentos = []
+    stats_por_peca = []
+
+    for i in range(NUM_EQUIPAMENTOS):
+        possui_ch_crit = i < CHANCE_CRIT_POSSIVEIS
+        valores, ups, tem_ch, tem_dmg = gerar_equipamento(possui_ch_crit)
+
+        total_ch_crit += valores.get("ch_crit", 0)
+        total_dmg_crit += valores.get("dmg_crit", 0)
+
+        stats_por_peca.append({
+            "tem_ch_crit": tem_ch,
+            "tem_dmg_crit": tem_dmg,
+            "ups_ch_crit": ups["ch_crit"],
+            "ups_dmg_crit": ups["dmg_crit"]
+        })
+
+    return round(total_ch_crit, 2), round(total_dmg_crit, 2), stats_por_peca
+
+# Simulação
+estatisticas_peca = [ {"tem_ch_crit": 0, "tem_dmg_crit": 0, "ups_ch_crit": [], "ups_dmg_crit": []} for _ in range(NUM_EQUIPAMENTOS)]
+conjuntos_validos = 0
+
+for _ in range(NUM_SIMULACOES):
+    ch_crit, dmg_crit, stats_pecas = simular_conjunto()
+    if ch_crit >= 25 and dmg_crit >= 110:
+        conjuntos_validos += 1
+        for i, stats in enumerate(stats_pecas):
+            if stats["tem_ch_crit"]:
+                estatisticas_peca[i]["tem_ch_crit"] += 1
+            if stats["tem_dmg_crit"]:
+                estatisticas_peca[i]["tem_dmg_crit"] += 1
+            estatisticas_peca[i]["ups_ch_crit"].append(stats["ups_ch_crit"])
+            estatisticas_peca[i]["ups_dmg_crit"].append(stats["ups_dmg_crit"])
+
+# Exibição
+print("\n===== ANÁLISE DAS PEÇAS DOS CONJUNTOS VÁLIDOS =====")
+for i, peca in enumerate(estatisticas_peca, 1):
+    total = len(peca["ups_ch_crit"])
+    print(f"\nPeça {i}:")
+    print(f"  - Chance Crítica presente em {peca['tem_ch_crit']}/{total} peças ({(peca['tem_ch_crit']/total)*100:.2f}%)")
+    print(f"  - Dano Crítico presente em {peca['tem_dmg_crit']}/{total} peças ({(peca['tem_dmg_crit']/total)*100:.2f}%)")
+    print(f"  - Média de upgrades em Chance Crítica: {sum(peca['ups_ch_crit'])/total:.2f}")
+    print(f"  - Média de upgrades em Dano Crítico: {sum(peca['ups_dmg_crit'])/total:.2f}")
+
+print(f"\nTotal de conjuntos simulados: {NUM_SIMULACOES}")
+print(f"Conjuntos válidos: {conjuntos_validos}")
+print(f"Taxa de sucesso: {(conjuntos_validos/NUM_SIMULACOES)*100:.2f}%")
